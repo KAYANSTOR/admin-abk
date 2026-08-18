@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import android.content.Context
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -8,23 +9,31 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.ui.auth.AuthViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LoginScreen(onLoginSuccess: () -> Unit) {
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var hasError by remember { mutableStateOf(false) }
+fun LoginScreen(onLoginSuccess: () -> Unit, viewModel: AuthViewModel = viewModel()) {
+    var name by remember { mutableStateOf("") }
+    var phone by remember { mutableStateOf("") }
+    var pin by remember { mutableStateOf("") }
+    
+    val isLoading by viewModel.isLoading.collectAsState()
+    val errorMsg by viewModel.errorMsg.collectAsState()
+    val context = LocalContext.current
+    val sharedPref = remember { context.getSharedPreferences("KayanPrefs", Context.MODE_PRIVATE) }
 
     Box(
         modifier = Modifier
@@ -61,26 +70,21 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                     )
                 }
 
-                if (hasError) {
+                if (errorMsg != null) {
                     Text(
-                        text = "البريد الإلكتروني أو كلمة المرور غير صحيحة",
+                        text = errorMsg!!,
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
 
                 OutlinedTextField(
-                    value = email,
-                    onValueChange = { 
-                        email = it
-                        hasError = false
-                    },
-                    label = { Text("البريد الإلكتروني") },
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("الاسم") },
                     leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                    isError = hasError,
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = MaterialTheme.colorScheme.primary,
                         unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant
@@ -88,18 +92,28 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                 )
 
                 OutlinedTextField(
-                    value = password,
-                    onValueChange = { 
-                        password = it
-                        hasError = false
-                    },
-                    label = { Text("كلمة المرور") },
+                    value = phone,
+                    onValueChange = { phone = it },
+                    label = { Text("رقم الهاتف") },
+                    leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                )
+
+                OutlinedTextField(
+                    value = pin,
+                    onValueChange = { if (it.length <= 4) pin = it },
+                    label = { Text("رمز الدخول (4 أرقام)") },
                     leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    isError = hasError,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = MaterialTheme.colorScheme.primary,
                         unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant
@@ -108,25 +122,25 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
 
                 Button(
                     onClick = {
-                        if (email.trim().lowercase() == "admin@kayansoft.com" && password == "123456") {
-                            hasError = false
-                            onLoginSuccess()
-                        } else {
-                            hasError = true
-                        }
+                        viewModel.login(name, phone, pin, sharedPref, onLoginSuccess)
                     },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(50.dp),
                     shape = RoundedCornerShape(12.dp),
+                    enabled = !isLoading,
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) {
-                    Text(
-                        "دخول",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
+                    if (isLoading) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
+                    } else {
+                        Text(
+                            "دخول",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                    }
                 }
             }
         }

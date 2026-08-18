@@ -21,6 +21,14 @@ fun AppNavigation(isLoggedIn: Boolean, onLoginSuccess: () -> Unit) {
                 }
             ) 
         }
-        composable("main") { AppMainScreen() }
+        composable("main") { 
+            AppMainScreen(
+                onLogout = {
+                    navController.navigate("login") {
+                        popUpTo("main") { inclusive = true }
+                    }
+                }
+            ) 
+        }
     }
 }

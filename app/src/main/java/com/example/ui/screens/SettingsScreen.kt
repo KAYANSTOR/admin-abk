@@ -15,8 +15,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.filled.ExitToApp
+
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(onLogout: () -> Unit = {}) {
     var notificationsEnabled by remember { mutableStateOf(true) }
     var twoFactorAuthEnabled by remember { mutableStateOf(false) }
 
@@ -64,9 +67,37 @@ fun SettingsScreen() {
         item {
             SettingsCard(
                 title = "عن النظام",
-                subtitle = "إصدار 1.0.0 (Demo)",
+                subtitle = "إصدار 1.0.0",
                 icon = Icons.Default.Info
             )
+        }
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth().clickable { onLogout() },
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ExitToApp,
+                        contentDescription = "تسجيل خروج",
+                        tint = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Text(
+                        text = "تسجيل خروج",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                }
+            }
         }
     }
 }

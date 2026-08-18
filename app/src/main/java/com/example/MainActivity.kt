@@ -20,7 +20,7 @@ class MainActivity : ComponentActivity() {
     super.onCreate(savedInstanceState)
     
     val sharedPref: SharedPreferences = getSharedPreferences("KayanPrefs", Context.MODE_PRIVATE)
-    val isLoggedIn = sharedPref.getBoolean("isLoggedIn", false)
+    val isLoggedIn = sharedPref.getString("userId", null) != null
 
     enableEdgeToEdge()
     setContent {
@@ -28,7 +28,7 @@ class MainActivity : ComponentActivity() {
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
           Surface(modifier = Modifier.fillMaxSize()) {
               AppNavigation(isLoggedIn, onLoginSuccess = {
-                  sharedPref.edit().putBoolean("isLoggedIn", true).apply()
+                  // Handled in AuthViewModel already
               })
           }
         }

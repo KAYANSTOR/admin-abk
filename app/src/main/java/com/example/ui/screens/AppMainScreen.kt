@@ -28,24 +28,46 @@ import com.example.ui.DashboardScreen
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 
+import com.example.ui.auth.AuthViewModel
+import com.example.ui.auth.UserModel
+import androidx.compose.ui.platform.LocalContext
+import android.content.Context
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppMainScreen(
     clientsViewModel: ClientsViewModel = viewModel(),
-    serialsViewModel: SerialsViewModel = viewModel()
+    serialsViewModel: SerialsViewModel = viewModel(),
+    authViewModel: AuthViewModel = viewModel(),
+    onLogout: () -> Unit = {}
 ) {
+    val context = LocalContext.current
+    val sharedPref = remember { context.getSharedPreferences("KayanPrefs", Context.MODE_PRIVATE) }
+    
+    val currentUser by authViewModel.currentUser.collectAsState()
+    
+    LaunchedEffect(Unit) {
+        if (currentUser == null) {
+            authViewModel.checkAutoLogin(sharedPref) {}
+        }
+    }
+
     val navController = rememberNavController()
     var showQuickActions by remember { mutableStateOf(false) }
     var showCreateSerialDialog by remember { mutableStateOf(false) }
     var showCreateUserDialog by remember { mutableStateOf(false) }
 
-    val bottomItems = listOf(
+    val allBottomItems = listOf(
         NavigationItem("dashboard", "الرئيسية", Icons.Default.Home),
         NavigationItem("clients", "العملاء", Icons.Default.Group),
         NavigationItem("licenses", "التراخيص", Icons.Default.VpnKey),
         NavigationItem("commissions", "التقارير", Icons.Default.BarChart),
         NavigationItem("settings", "الإعدادات", Icons.Default.Settings)
     )
+    
+    val bottomItems = allBottomItems.filter { item ->
+        currentUser?.role == "ADMIN" || item.route == "dashboard" || item.route == "settings" || currentUser?.permissions?.contains(item.route) == true
+    }
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
@@ -88,13 +110,15 @@ fun AppMainScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showQuickActions = true },
-                containerColor = com.example.ui.theme.AccentPink,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "إجراءات سريعة")
+            if (currentUser?.role == "ADMIN" || currentUser?.permissions?.contains("clients") == true) {
+                FloatingActionButton(
+                    onClick = { showQuickActions = true },
+                    containerColor = com.example.ui.theme.AccentPink,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "إجراءات سريعة")
+                }
             }
         },
         floatingActionButtonPosition = FabPosition.Start,
@@ -114,7 +138,11 @@ fun AppMainScreen(
             composable("subscriptions") { SubscriptionsScreen() }
             composable("sales") { SalesScreen() }
             composable("commissions") { CommissionsScreen() }
-            composable("settings") { SettingsScreen() }
+            composable("settings") { SettingsScreen(onLogout = { 
+                authViewModel.logout(sharedPref) {
+                    onLogout()
+                }
+            }) }
         }
 
         if (showQuickActions) {
@@ -143,14 +171,16 @@ fun AppMainScreen(
                             navController.navigate("create_serial") 
                         }
                     )
-                    QuickActionItem(
-                        title = "إنشاء مستخدم مع الصلاحيات",
-                        icon = Icons.Default.PersonAdd,
-                        onClick = { 
-                            showQuickActions = false
-                            showCreateUserDialog = true 
-                        }
-                    )
+                    if (currentUser?.role == "ADMIN") {
+                        QuickActionItem(
+                            title = "إنشاء مستخدم مع الصلاحيات",
+                            icon = Icons.Default.PersonAdd,
+                            onClick = { 
+                                showQuickActions = false
+                                showCreateUserDialog = true 
+                            }
+                        )
+                    }
                     QuickActionItem(
                         title = "تجميد / حذف اشتراك",
                         icon = Icons.Default.Block,
@@ -181,8 +211,7 @@ fun AppMainScreen(
         }
         
         if (showCreateUserDialog) {
-            // Keep state or remove logic entirely
-            showCreateUserDialog = false
+            CreateEmployeeDialog(onDismiss = { showCreateUserDialog = false })
         }
         
         if (showCreateSerialDialog) {

@@ -13,9 +13,67 @@ import com.example.ui.components.SearchAndFilterHeader
 import com.example.ui.components.StatusBadge
 import com.example.ui.components.StatusType
 
+import androidx.compose.foundation.lazy.items
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.launch
+import androidx.lifecycle.viewModelScope
+import android.util.Log
+
+data class SubscriptionModel(
+    val id: String = "",
+    val network: String = "",
+    val plan: String = "",
+    val dateInfo: String = "",
+    val statusText: String = "",
+    val statusTypeString: String = StatusType.SUCCESS.name
+) {
+    val statusType: StatusType
+        get() = try { StatusType.valueOf(statusTypeString) } catch (e: Exception) { StatusType.SUCCESS }
+}
+
+class SubscriptionsViewModel : ViewModel() {
+    private val db = FirebaseFirestore.getInstance()
+    private val _subscriptions = MutableStateFlow<List<SubscriptionModel>>(emptyList())
+    val subscriptions: StateFlow<List<SubscriptionModel>> = _subscriptions.asStateFlow()
+
+    init {
+        fetchSubscriptions()
+    }
+
+    private fun fetchSubscriptions() {
+        viewModelScope.launch {
+            try {
+                db.collection("subscriptions")
+                    .addSnapshotListener { snapshot, e ->
+                        if (e != null) {
+                            return@addSnapshotListener
+                        }
+                        val list = mutableListOf<SubscriptionModel>()
+                        for (doc in snapshot!!) {
+                            val sub = doc.toObject(SubscriptionModel::class.java).copy(id = doc.id)
+                            list.add(sub)
+                        }
+                        _subscriptions.value = list
+                    }
+            } catch (e: Exception) {
+            }
+        }
+    }
+}
+
 @Composable
-fun SubscriptionsScreen() {
+fun SubscriptionsScreen(viewModel: SubscriptionsViewModel = viewModel()) {
+    val subscriptions by viewModel.subscriptions.collectAsState()
     var searchQuery by remember { mutableStateOf("") }
+    
+    val filteredSubs = subscriptions.filter {
+        it.network.contains(searchQuery, ignoreCase = true)
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -41,10 +99,16 @@ fun SubscriptionsScreen() {
             )
         }
 
-        // Demo Data
-        item { SubscriptionItem("شبكة جدة", "خطة سنوية", "ينتهي في 2027/01/15", StatusType.SUCCESS, "نشط") }
-        item { SubscriptionItem("سارة الحربي", "خطة ربع سنوية", "ينتهي في 2026/08/28", StatusType.WARNING, "قريب الانتهاء") }
-        item { SubscriptionItem("خالد المطيري", "ترايل", "انتهى في 2026/08/24", StatusType.ERROR, "منتهي") }
+        // Real Data
+        items(filteredSubs, key = { it.id }) { sub ->
+            SubscriptionItem(
+                network = sub.network,
+                plan = sub.plan,
+                dateInfo = sub.dateInfo,
+                statusType = sub.statusType,
+                statusText = sub.statusText
+            )
+        }
     }
 }
 
