@@ -27,6 +27,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import java.util.UUID
 
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Exclude
+import kotlinx.coroutines.launch
+import androidx.lifecycle.viewModelScope
+import android.util.Log
+
 enum class SerialStatus(val text: String, val type: StatusType) {
     ACTIVE("نشط", StatusType.SUCCESS),
     UNUSED("غير مستخدم", StatusType.INFO),
@@ -35,22 +41,48 @@ enum class SerialStatus(val text: String, val type: StatusType) {
 }
 
 data class SerialModel(
-    val id: String = UUID.randomUUID().toString(),
-    val code: String,
-    val user: String,
-    val plan: String,
+    val id: String = "",
+    val code: String = "",
+    val user: String = "",
+    val plan: String = "",
+    val statusName: String = SerialStatus.UNUSED.name
+) {
+    @get:Exclude
     val status: SerialStatus
-)
+        get() = try { SerialStatus.valueOf(statusName) } catch (e: Exception) { SerialStatus.UNUSED }
+}
 
 class SerialsViewModel : ViewModel() {
-    private val _serials = MutableStateFlow<List<SerialModel>>(
-        listOf(
-            SerialModel(code = "KTK-7F92-XM42-91QZ", user = "شبكة جدة", plan = "خطة سنوية", status = SerialStatus.ACTIVE),
-            SerialModel(code = "KTK-B8V3-PL01-44XW", user = "غير مرتبط", plan = "خطة شهرية", status = SerialStatus.UNUSED),
-            SerialModel(code = "KTK-11A9-QQ55-88NM", user = "سارة الحربي", plan = "خطة ربع سنوية", status = SerialStatus.FROZEN)
-        )
-    )
+    private val db = FirebaseFirestore.getInstance()
+    private val _serials = MutableStateFlow<List<SerialModel>>(emptyList())
     val serials: StateFlow<List<SerialModel>> = _serials.asStateFlow()
+
+    init {
+        fetchSerials()
+    }
+
+    private fun fetchSerials() {
+        viewModelScope.launch {
+            try {
+                db.collection("serials")
+                    .addSnapshotListener { snapshot, e ->
+                        if (e != null) {
+                            Log.w("SerialsViewModel", "Listen failed.", e)
+                            return@addSnapshotListener
+                        }
+                        
+                        val list = mutableListOf<SerialModel>()
+                        for (doc in snapshot!!) {
+                            val serial = doc.toObject(SerialModel::class.java).copy(id = doc.id)
+                            list.add(serial)
+                        }
+                        _serials.value = list
+                    }
+            } catch (e: Exception) {
+                Log.e("SerialsViewModel", "Error fetching serials", e)
+            }
+        }
+    }
 
     fun addSerial(plan: String) {
         val newCode = "KTK-${generateRandomCode()}-${generateRandomCode()}-${generateRandomCode()}"
@@ -58,27 +90,21 @@ class SerialsViewModel : ViewModel() {
             code = newCode,
             user = "غير مرتبط",
             plan = plan,
-            status = SerialStatus.UNUSED
+            statusName = SerialStatus.UNUSED.name
         )
-        _serials.update { listOf(newSerial) + it }
+        db.collection("serials").add(newSerial)
     }
 
     fun freezeSerial(id: String) {
-        _serials.update { current ->
-            current.map { if (it.id == id) it.copy(status = SerialStatus.FROZEN) else it }
-        }
+        db.collection("serials").document(id).update("statusName", SerialStatus.FROZEN.name)
     }
     
     fun unfreezeSerial(id: String) {
-        _serials.update { current ->
-            current.map { if (it.id == id) it.copy(status = SerialStatus.ACTIVE) else it }
-        }
+        db.collection("serials").document(id).update("statusName", SerialStatus.ACTIVE.name)
     }
 
     fun deleteSerial(id: String) {
-        _serials.update { current ->
-            current.filter { it.id != id }
-        }
+        db.collection("serials").document(id).delete()
     }
 
     private fun generateRandomCode(): String {

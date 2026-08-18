@@ -15,6 +15,9 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.tasks.await
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateSerialScreen(onBackClick: () -> Unit, onActivate: () -> Unit) {
@@ -29,6 +32,7 @@ fun CreateSerialScreen(onBackClick: () -> Unit, onActivate: () -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     
     val scope = rememberCoroutineScope()
+    val db = FirebaseFirestore.getInstance()
 
     Scaffold(
         topBar = {
@@ -71,13 +75,23 @@ fun CreateSerialScreen(onBackClick: () -> Unit, onActivate: () -> Unit) {
                         scope.launch {
                             isSearching = true
                             searchPerformed = false
-                            delay(1000) // Mock network delay
-                            // Mock finding a client
-                            searchResult = ClientModel(
-                                name = "عميل تجريبي",
-                                networkName = "شبكة الحرية",
-                                isActive = false
-                            )
+                            
+                            try {
+                                val querySnapshot = db.collection("clients")
+                                    .whereEqualTo("deviceId", searchQuery)
+                                    .get()
+                                    .await()
+                                    
+                                if (!querySnapshot.isEmpty) {
+                                    val doc = querySnapshot.documents[0]
+                                    searchResult = doc.toObject(ClientModel::class.java)?.copy(id = doc.id)
+                                } else {
+                                    searchResult = null
+                                }
+                            } catch (e: Exception) {
+                                searchResult = null
+                            }
+                            
                             isSearching = false
                             searchPerformed = true
                         }
@@ -158,8 +172,18 @@ fun CreateSerialScreen(onBackClick: () -> Unit, onActivate: () -> Unit) {
                 
                 Button(
                     onClick = {
-                        // TODO: Implement actual API call here
-                        onActivate()
+                        scope.launch {
+                            try {
+                                searchResult?.let { client ->
+                                    db.collection("clients").document(client.id)
+                                        .update("isActive", true)
+                                        .await()
+                                    onActivate()
+                                }
+                            } catch (e: Exception) {
+                                // Handle error
+                            }
+                        }
                     },
                     modifier = Modifier.fillMaxWidth().height(50.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = com.example.ui.theme.SuccessGreen)

@@ -9,14 +9,75 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.example.ui.CommissionOverviewCard
 import com.example.ui.components.SearchAndFilterHeader
 import com.example.ui.components.StatusBadge
 import com.example.ui.components.StatusType
 
+import androidx.compose.foundation.lazy.items
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.launch
+import androidx.lifecycle.viewModelScope
+import android.util.Log
+
+data class CommissionModel(
+    val id: String = "",
+    val network: String = "",
+    val totalSales: String = "",
+    val commissionAmount: String = "",
+    val rate: String = "",
+    val statusText: String = "",
+    val statusTypeString: String = StatusType.WARNING.name
+) {
+    val statusType: StatusType
+        get() = try { StatusType.valueOf(statusTypeString) } catch (e: Exception) { StatusType.WARNING }
+}
+
+class CommissionsViewModel : ViewModel() {
+    private val db = FirebaseFirestore.getInstance()
+    private val _commissions = MutableStateFlow<List<CommissionModel>>(emptyList())
+    val commissions: StateFlow<List<CommissionModel>> = _commissions.asStateFlow()
+
+    init {
+        fetchCommissions()
+    }
+
+    private fun fetchCommissions() {
+        viewModelScope.launch {
+            try {
+                db.collection("commissions")
+                    .addSnapshotListener { snapshot, e ->
+                        if (e != null) {
+                            Log.w("CommissionsViewModel", "Listen failed.", e)
+                            return@addSnapshotListener
+                        }
+                        
+                        val list = mutableListOf<CommissionModel>()
+                        for (doc in snapshot!!) {
+                            val commission = doc.toObject(CommissionModel::class.java).copy(id = doc.id)
+                            list.add(commission)
+                        }
+                        _commissions.value = list
+                    }
+            } catch (e: Exception) {
+                Log.e("CommissionsViewModel", "Error fetching commissions", e)
+            }
+        }
+    }
+}
+
 @Composable
-fun CommissionsScreen() {
+fun CommissionsScreen(viewModel: CommissionsViewModel = viewModel()) {
+    val commissions by viewModel.commissions.collectAsState()
     var searchQuery by remember { mutableStateOf("") }
+    
+    val filteredCommissions = commissions.filter {
+        it.network.contains(searchQuery, ignoreCase = true)
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -34,9 +95,7 @@ fun CommissionsScreen() {
             )
         }
 
-        item {
-            CommissionOverviewCard()
-        }
+        // Removed Overview Card
 
         item {
             SearchAndFilterHeader(
@@ -56,11 +115,17 @@ fun CommissionsScreen() {
             )
         }
 
-        // Demo Commission Data
-        item { CommissionItem("شبكة جدة", "150,000 ريال", "7,500 ريال", "5%", StatusType.WARNING, "مستحقة") }
-        item { CommissionItem("سارة الحربي", "20,000 ريال", "1,000 ريال", "5%", StatusType.SUCCESS, "مدفوعة") }
-        item { CommissionItem("خالد المطيري", "45,000 ريال", "2,250 ريال", "5%", StatusType.WARNING, "مستحقة") }
-        item { CommissionItem("شبكة الرياض", "200,000 ريال", "10,000 ريال", "5%", StatusType.ERROR, "متأخرة") }
+        // Real Commission Data
+        items(filteredCommissions, key = { it.id }) { commission ->
+            CommissionItem(
+                network = commission.network,
+                totalSales = commission.totalSales,
+                commissionAmount = commission.commissionAmount,
+                rate = commission.rate,
+                statusType = commission.statusType,
+                statusText = commission.statusText
+            )
+        }
     }
 }
 

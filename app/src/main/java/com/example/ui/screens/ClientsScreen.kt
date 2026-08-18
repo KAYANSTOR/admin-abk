@@ -29,22 +29,51 @@ import java.util.UUID
 import androidx.navigation.NavController
 import com.example.ui.components.SearchAndFilterHeader
 
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.tasks.await
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.launch
+import android.util.Log
+
 data class ClientModel(
-    val id: String = UUID.randomUUID().toString(),
-    val name: String,
-    val networkName: String,
-    val isActive: Boolean
+    val id: String = "",
+    val name: String = "",
+    val networkName: String = "",
+    val isActive: Boolean = false,
+    val deviceId: String = ""
 )
 
 class ClientsViewModel : ViewModel() {
-    private val _clients = MutableStateFlow<List<ClientModel>>(
-        listOf(
-            ClientModel(name = "محمد العبدالله", networkName = "شبكة جدة السريعة", isActive = true),
-            ClientModel(name = "سعد الدوسري", networkName = "شبكة الرياض بلس", isActive = true),
-            ClientModel(name = "عبدالرحمن الفهد", networkName = "شبكة أبها نت", isActive = false)
-        )
-    )
+    private val db = FirebaseFirestore.getInstance()
+    private val _clients = MutableStateFlow<List<ClientModel>>(emptyList())
     val clients: StateFlow<List<ClientModel>> = _clients.asStateFlow()
+
+    init {
+        fetchClients()
+    }
+
+    private fun fetchClients() {
+        viewModelScope.launch {
+            try {
+                db.collection("clients")
+                    .addSnapshotListener { snapshot, e ->
+                        if (e != null) {
+                            Log.w("ClientsViewModel", "Listen failed.", e)
+                            return@addSnapshotListener
+                        }
+                        
+                        val clientList = mutableListOf<ClientModel>()
+                        for (doc in snapshot!!) {
+                            val client = doc.toObject(ClientModel::class.java).copy(id = doc.id)
+                            clientList.add(client)
+                        }
+                        _clients.value = clientList
+                    }
+            } catch (e: Exception) {
+                Log.e("ClientsViewModel", "Error fetching clients", e)
+            }
+        }
+    }
 }
 
 @Composable

@@ -32,9 +32,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun AppMainScreen(
     clientsViewModel: ClientsViewModel = viewModel(),
-    serialsViewModel: SerialsViewModel = viewModel(),
-    subscriptionsViewModel: SubscriptionsViewModel = viewModel(),
-    commissionsViewModel: CommissionsViewModel = viewModel()
+    serialsViewModel: SerialsViewModel = viewModel()
 ) {
     val navController = rememberNavController()
     var showQuickActions by remember { mutableStateOf(false) }
@@ -113,9 +111,9 @@ fun AppMainScreen(
             composable("licenses") { LicensesScreen() }
             composable("serials") { SerialsScreen(serialsViewModel) }
             composable("create_serial") { CreateSerialScreen(onBackClick = { navController.popBackStack() }, onActivate = { navController.navigate("clients") { popUpTo("dashboard") } }) }
-            composable("subscriptions") { SubscriptionsScreen(subscriptionsViewModel) }
+            composable("subscriptions") { SubscriptionsScreen() }
             composable("sales") { SalesScreen() }
-            composable("commissions") { CommissionsScreen(commissionsViewModel) }
+            composable("commissions") { CommissionsScreen() }
             composable("settings") { SettingsScreen() }
         }
 

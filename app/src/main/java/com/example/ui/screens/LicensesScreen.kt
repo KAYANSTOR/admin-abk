@@ -27,35 +27,61 @@ import kotlinx.coroutines.flow.update
 import java.util.UUID
 import com.example.ui.components.SearchAndFilterHeader
 
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.launch
+import androidx.lifecycle.viewModelScope
+import android.util.Log
+
 data class LicenseModel(
-    val id: String = UUID.randomUUID().toString(),
-    val name: String,
-    val expireDate: String,
-    val initial: String,
-    val isActive: Boolean
+    val id: String = "",
+    val name: String = "",
+    val expireDate: String = "",
+    val initial: String = "",
+    val isActive: Boolean = false
 )
 
 class LicensesViewModel : ViewModel() {
-    private val _licenses = MutableStateFlow<List<LicenseModel>>(
-        listOf(
-            LicenseModel(name = "سارة الحربي", expireDate = "2026/08/28", initial = "س", isActive = true),
-            LicenseModel(name = "خالد المطيري", expireDate = "2026/08/24", initial = "خ", isActive = false),
-            LicenseModel(name = "أحمد العتيبي", expireDate = "2026/09/10", initial = "أ", isActive = true),
-            LicenseModel(name = "شبكة جدة", expireDate = "2027/01/15", initial = "ش", isActive = true)
-        )
-    )
+    private val db = FirebaseFirestore.getInstance()
+    private val _licenses = MutableStateFlow<List<LicenseModel>>(emptyList())
     val licenses: StateFlow<List<LicenseModel>> = _licenses.asStateFlow()
 
+    init {
+        fetchLicenses()
+    }
+
+    private fun fetchLicenses() {
+        viewModelScope.launch {
+            try {
+                db.collection("licenses")
+                    .addSnapshotListener { snapshot, e ->
+                        if (e != null) {
+                            Log.w("LicensesViewModel", "Listen failed.", e)
+                            return@addSnapshotListener
+                        }
+                        
+                        val list = mutableListOf<LicenseModel>()
+                        for (doc in snapshot!!) {
+                            val license = doc.toObject(LicenseModel::class.java).copy(id = doc.id)
+                            list.add(license)
+                        }
+                        _licenses.value = list
+                    }
+            } catch (e: Exception) {
+                Log.e("LicensesViewModel", "Error fetching licenses", e)
+            }
+        }
+    }
+
     fun toggleLicense(id: String) {
-        _licenses.update { current ->
-            current.map { if (it.id == id) it.copy(isActive = !it.isActive) else it }
+        val current = _licenses.value.find { it.id == id }
+        if (current != null) {
+            db.collection("licenses").document(id).update("isActive", !current.isActive)
         }
     }
 
     fun addLicense(name: String, expireDate: String, initial: String) {
-        _licenses.update { current ->
-            listOf(LicenseModel(name = name, expireDate = expireDate, initial = initial, isActive = true)) + current
-        }
+        val newLicense = LicenseModel(name = name, expireDate = expireDate, initial = initial, isActive = true)
+        db.collection("licenses").add(newLicense)
     }
 }
 
