@@ -72,6 +72,26 @@ fun AppMainScreen(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
 
+    var backPressedOnce by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    
+    androidx.activity.compose.BackHandler(enabled = true) {
+        if (currentDestination?.route == "dashboard") {
+            if (backPressedOnce) {
+                (context as? android.app.Activity)?.finish()
+            } else {
+                backPressedOnce = true
+                android.widget.Toast.makeText(context, "اضغط مرة أخرى للخروج من التطبيق", android.widget.Toast.LENGTH_SHORT).show()
+                scope.launch {
+                    kotlinx.coroutines.delay(2000)
+                    backPressedOnce = false
+                }
+            }
+        } else {
+            navController.popBackStack("dashboard", false)
+        }
+    }
+
     Scaffold(
         bottomBar = {
             BottomAppBar(
@@ -84,9 +104,13 @@ fun AppMainScreen(
                         IconButton(
                             onClick = {
                                 navController.navigate(item.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                    if (item.route == "dashboard") {
+                                        popUpTo("dashboard") { inclusive = false }
+                                    } else {
+                                        popUpTo("dashboard") { saveState = true }
+                                        restoreState = true
+                                    }
                                     launchSingleTop = true
-                                    restoreState = true
                                 }
                             },
                             modifier = Modifier.weight(1f)
@@ -138,11 +162,12 @@ fun AppMainScreen(
             composable("subscriptions") { SubscriptionsScreen() }
             composable("sales") { SalesScreen() }
             composable("commissions") { CommissionsScreen() }
+            composable("employees") { EmployeesScreen(onBackClick = { navController.popBackStack() }) }
             composable("settings") { SettingsScreen(onLogout = { 
                 authViewModel.logout(sharedPref) {
                     onLogout()
                 }
-            }) }
+            }, onManageEmployeesClick = { navController.navigate("employees") }, isAdmin = currentUser?.role == "ADMIN") }
         }
 
         if (showQuickActions) {

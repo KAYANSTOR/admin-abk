@@ -16,10 +16,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.ExitToApp
 
 @Composable
-fun SettingsScreen(onLogout: () -> Unit = {}) {
+fun SettingsScreen(onLogout: () -> Unit = {}, onManageEmployeesClick: () -> Unit = {}, isAdmin: Boolean = false) {
     var notificationsEnabled by remember { mutableStateOf(true) }
     var twoFactorAuthEnabled by remember { mutableStateOf(false) }
 
@@ -37,6 +38,37 @@ fun SettingsScreen(onLogout: () -> Unit = {}) {
                 color = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
+        }
+        
+        if (isAdmin) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth().clickable { onManageEmployeesClick() },
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.People,
+                            contentDescription = "إدارة الموظفين",
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Text(
+                            text = "إدارة الموظفين والصلاحيات",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
+            }
         }
         
         item {

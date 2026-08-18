@@ -47,11 +47,11 @@ class AuthViewModel : ViewModel() {
                 val allUsers = db.collection("users").limit(1).get().await()
                 if (allUsers.isEmpty) {
                     val admin = UserModel(
-                        name = "مدير النظام",
-                        phone = "0500000000",
-                        pin = "1234",
+                        name = "jar",
+                        phone = "773303455",
+                        pin = "0808",
                         role = "ADMIN",
-                        permissions = listOf("clients", "licenses", "serials", "commissions", "subscriptions")
+                        permissions = listOf("clients", "licenses", "serials", "commissions", "subscriptions", "employees")
                     )
                     db.collection("users").add(admin).await()
                     if (name == admin.name && phone == admin.phone && pin == admin.pin) {

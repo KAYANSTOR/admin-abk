@@ -27,6 +27,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import com.example.ui.theme.GradientStart
@@ -35,20 +36,88 @@ import com.example.ui.theme.SuccessGreen
 import com.example.ui.theme.SuccessBackground
 import com.example.ui.theme.LightBackground
 
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.launch
+import androidx.lifecycle.viewModelScope
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
 data class DashboardMetrics(
-    val dateString: String = "الأحد، ٢٦ يوليو",
-    val totalPendingCommissions: String = "4,500 ر.ي",
-    val accountsCount: String = "12",
-    val cardsAvailable: String = "45",
-    val todaySalesValue: String = "850 ر.ي",
-    val todaySalesCount: String = "12 كرت",
-    val monthSalesValue: String = "14,200 ر.ي",
-    val monthSalesCount: String = "145 كرت"
+    val dateString: String = "",
+    val totalPendingCommissions: String = "0 ر.ي",
+    val accountsCount: String = "0",
+    val cardsAvailable: String = "0",
+    val todaySalesValue: String = "0 ر.ي",
+    val todaySalesCount: String = "0 اشتراك",
+    val monthSalesValue: String = "0 ر.ي",
+    val monthSalesCount: String = "0 اشتراك",
+    val trialAccountsCount: String = "0"
 )
 
 class DashboardViewModel : ViewModel() {
+    private val db = FirebaseFirestore.getInstance()
     private val _metrics = MutableStateFlow(DashboardMetrics())
     val metrics: StateFlow<DashboardMetrics> = _metrics.asStateFlow()
+
+    init {
+        updateDate()
+        fetchData()
+    }
+
+    private fun updateDate() {
+        val formatter = SimpleDateFormat("EEEE، d MMMM yyyy (hh:mm a)", Locale("ar"))
+        _metrics.update { it.copy(dateString = formatter.format(Date())) }
+    }
+
+    private fun fetchData() {
+        viewModelScope.launch {
+            // Clients
+            db.collection("clients").addSnapshotListener { snapshot, e ->
+                if (e != null || snapshot == null) return@addSnapshotListener
+                val activeCount = snapshot.documents.count { it.getBoolean("isActive") == true }
+                val trialCount = snapshot.documents.count { it.getBoolean("isActive") == false }
+                
+                _metrics.update { it.copy(accountsCount = activeCount.toString(), trialAccountsCount = trialCount.toString()) }
+            }
+
+            // Serials
+            db.collection("serials").addSnapshotListener { snapshot, e ->
+                if (e != null || snapshot == null) return@addSnapshotListener
+                val activeSerials = snapshot.documents.count { it.getString("statusName") == "ACTIVE" }
+                _metrics.update { it.copy(cardsAvailable = activeSerials.toString()) }
+            }
+
+            // Subscriptions / Sales (using subscriptions collection for mock sales)
+            db.collection("subscriptions").addSnapshotListener { snapshot, e ->
+                if (e != null || snapshot == null) return@addSnapshotListener
+                val count = snapshot.documents.size
+                // Mock sales data based on count
+                val todayVal = count * 1500
+                val monthVal = count * 1500 * 30
+                _metrics.update { 
+                    it.copy(
+                        todaySalesCount = "$count اشتراك",
+                        todaySalesValue = "$todayVal ر.ي",
+                        monthSalesCount = "${count * 30} اشتراك",
+                        monthSalesValue = "$monthVal ر.ي"
+                    )
+                }
+            }
+
+            // Commissions
+            db.collection("commissions").addSnapshotListener { snapshot, e ->
+                if (e != null || snapshot == null) return@addSnapshotListener
+                val pendingCount = snapshot.documents.count { 
+                    val status = it.getString("statusTypeString") 
+                    status == "WARNING" || status == "ERROR" 
+                }
+                // Mock value
+                val pendingVal = pendingCount * 2500
+                _metrics.update { it.copy(totalPendingCommissions = "$pendingVal ر.ي") }
+            }
+        }
+    }
 }
 
 @Composable
@@ -65,17 +134,17 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel(), navController: 
     ) {
         // Header Section
         item {
-            HeaderSection(dateString = metrics.dateString)
+            HeaderSection(dateString = metrics.dateString, navController = navController)
         }
 
         // Gradient Main Card (Total Balance / Pending Commissions)
         item {
-            MainGradientCard(metrics = metrics)
+            MainGradientCard(metrics = metrics, navController = navController)
         }
 
         // Sales Row
         item {
-            SalesRow(metrics = metrics)
+            SalesRow(metrics = metrics, navController = navController)
         }
 
         // Action Grid
@@ -91,7 +160,7 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel(), navController: 
 }
 
 @Composable
-fun HeaderSection(dateString: String) {
+fun HeaderSection(dateString: String, navController: NavController? = null) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -100,16 +169,10 @@ fun HeaderSection(dateString: String) {
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 IconButton(
-                    onClick = { /* Settings */ },
+                    onClick = { navController?.navigate("settings") },
                     modifier = Modifier.background(MaterialTheme.colorScheme.surface, CircleShape).border(1.dp, MaterialTheme.colorScheme.surfaceVariant, CircleShape).size(40.dp)
                 ) {
                     Icon(Icons.Default.Settings, contentDescription = "Settings")
-                }
-                IconButton(
-                    onClick = { /* Help */ },
-                    modifier = Modifier.background(MaterialTheme.colorScheme.surface, CircleShape).border(1.dp, MaterialTheme.colorScheme.surfaceVariant, CircleShape).size(40.dp)
-                ) {
-                    Icon(Icons.Default.HelpOutline, contentDescription = "Help")
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -185,13 +248,14 @@ fun SystemStatusAlert() {
 }
 
 @Composable
-fun MainGradientCard(metrics: DashboardMetrics) {
+fun MainGradientCard(metrics: DashboardMetrics, navController: NavController? = null) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(24.dp))
             .background(Brush.horizontalGradient(listOf(GradientStart, GradientEnd)))
             .padding(24.dp)
+            .clickable { navController?.navigate("commissions") }
     ) {
         Column(horizontalAlignment = Alignment.End, modifier = Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -214,17 +278,23 @@ fun MainGradientCard(metrics: DashboardMetrics) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { navController?.navigate("serials") }) {
                     Icon(Icons.Default.CardGiftcard, contentDescription = null, tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(text = metrics.cardsAvailable, color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                    Text(text = "سيريالات متوفرة", color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.bodySmall)
+                    Text(text = "سيريالات مفعلة", color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.bodySmall)
                 }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { navController?.navigate("clients") }) {
                     Icon(Icons.Default.Group, contentDescription = null, tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(text = metrics.accountsCount, color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                     Text(text = "الحسابات المرتبطة", color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.bodySmall)
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { navController?.navigate("clients") }) {
+                    Icon(Icons.Default.HourglassEmpty, contentDescription = null, tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(text = metrics.trialAccountsCount, color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                    Text(text = "فترة تجريبية", color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
@@ -232,20 +302,20 @@ fun MainGradientCard(metrics: DashboardMetrics) {
 }
 
 @Composable
-fun SalesRow(metrics: DashboardMetrics) {
+fun SalesRow(metrics: DashboardMetrics, navController: NavController? = null) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         SalesCard(
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).clickable { navController?.navigate("sales") },
             title = "مبيعات الشهر",
             amount = metrics.monthSalesValue,
             count = metrics.monthSalesCount,
             icon = Icons.Default.CalendarMonth
         )
         SalesCard(
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).clickable { navController?.navigate("subscriptions") },
             title = "مبيعات اليوم",
             amount = metrics.todaySalesValue,
             count = metrics.todaySalesCount,
