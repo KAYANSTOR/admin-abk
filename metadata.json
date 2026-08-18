@@ -1,0 +1,6 @@
+{
+  "name": "Kayan Admin",
+  "description": "KayanSoft Admin Dashboard Application",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
