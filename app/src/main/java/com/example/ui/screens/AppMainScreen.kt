@@ -25,13 +25,21 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.ui.DashboardScreen
+import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AppMainScreen() {
+fun AppMainScreen(
+    usersViewModel: UsersViewModel = viewModel(),
+    serialsViewModel: SerialsViewModel = viewModel(),
+    subscriptionsViewModel: SubscriptionsViewModel = viewModel(),
+    commissionsViewModel: CommissionsViewModel = viewModel()
+) {
     val navController = rememberNavController()
     var showQuickActions by remember { mutableStateOf(false) }
+    var showCreateSerialDialog by remember { mutableStateOf(false) }
+    var showCreateUserDialog by remember { mutableStateOf(false) }
 
     val bottomItems = listOf(
         NavigationItem("dashboard", "التقارير", Icons.Default.Analytics),
@@ -154,12 +162,12 @@ fun AppMainScreen() {
             modifier = Modifier.padding(innerPadding)
         ) {
             composable("dashboard") { DashboardScreen() }
-            composable("users") { UsersScreen() }
+            composable("users") { UsersScreen(usersViewModel) }
             composable("licenses") { LicensesScreen() }
-            composable("serials") { SerialsScreen() }
-            composable("subscriptions") { SubscriptionsScreen() }
+            composable("serials") { SerialsScreen(serialsViewModel) }
+            composable("subscriptions") { SubscriptionsScreen(subscriptionsViewModel) }
             composable("sales") { SalesScreen() }
-            composable("commissions") { CommissionsScreen() }
+            composable("commissions") { CommissionsScreen(commissionsViewModel) }
             composable("settings") { SettingsScreen() }
         }
 
@@ -184,26 +192,76 @@ fun AppMainScreen() {
                     QuickActionItem(
                         title = "إنشاء سيريال جديد",
                         icon = Icons.Default.VpnKey,
-                        onClick = { showQuickActions = false }
+                        onClick = { 
+                            showQuickActions = false
+                            showCreateSerialDialog = true 
+                        }
                     )
                     QuickActionItem(
                         title = "إنشاء مستخدم مع الصلاحيات",
                         icon = Icons.Default.PersonAdd,
-                        onClick = { showQuickActions = false }
+                        onClick = { 
+                            showQuickActions = false
+                            showCreateUserDialog = true 
+                        }
                     )
                     QuickActionItem(
                         title = "تجميد / حذف اشتراك",
                         icon = Icons.Default.Block,
-                        onClick = { showQuickActions = false },
+                        onClick = { 
+                            showQuickActions = false
+                            navController.navigate("subscriptions") {
+                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
                         isDestructive = true
                     )
                     QuickActionItem(
                         title = "تسوية وتصفية عمولة",
                         icon = Icons.Default.DoneAll,
-                        onClick = { showQuickActions = false }
+                        onClick = { 
+                            showQuickActions = false
+                            navController.navigate("commissions") {
+                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        }
                     )
                 }
             }
+        }
+        
+        if (showCreateUserDialog) {
+            CreateUserDialog(
+                onDismiss = { showCreateUserDialog = false },
+                onCreate = { name, role ->
+                    usersViewModel.addUser(name, role)
+                    showCreateUserDialog = false
+                    navController.navigate("users") {
+                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                }
+            )
+        }
+        
+        if (showCreateSerialDialog) {
+            CreateSerialDialog(
+                onDismiss = { showCreateSerialDialog = false },
+                onCreate = { plan ->
+                    serialsViewModel.addSerial(plan)
+                    showCreateSerialDialog = false
+                    navController.navigate("serials") {
+                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                }
+            )
         }
     }
 }

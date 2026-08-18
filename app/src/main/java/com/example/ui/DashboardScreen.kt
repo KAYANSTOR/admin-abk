@@ -21,10 +21,29 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import com.example.ui.theme.warning
 
+data class DashboardMetrics(
+    val usersCount: String = "1,284",
+    val subscriptionsCount: String = "934",
+    val totalSales: String = "8.4M",
+    val dueCommissions: String = "642K"
+)
+
+class DashboardViewModel : ViewModel() {
+    private val _metrics = MutableStateFlow(DashboardMetrics())
+    val metrics: StateFlow<DashboardMetrics> = _metrics.asStateFlow()
+}
+
 @Composable
-fun DashboardScreen() {
+fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
+    val metrics by viewModel.metrics.collectAsState()
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -41,14 +60,14 @@ fun DashboardScreen() {
                         StatCard(
                             modifier = Modifier.weight(1f),
                             title = "المستخدمون",
-                            value = "1,284",
+                            value = metrics.usersCount,
                             icon = Icons.Default.Group,
                             iconTint = MaterialTheme.colorScheme.primary
                         )
                         StatCard(
                             modifier = Modifier.weight(1f),
                             title = "الاشتراكات",
-                            value = "934",
+                            value = metrics.subscriptionsCount,
                             icon = Icons.Default.CardMembership,
                             iconTint = MaterialTheme.colorScheme.secondary
                         )
@@ -63,14 +82,14 @@ fun DashboardScreen() {
                         StatCard(
                             modifier = Modifier.weight(1f),
                             title = "المبيعات",
-                            value = "8.4M",
+                            value = metrics.totalSales,
                             icon = Icons.Default.ShoppingCart,
                             iconTint = MaterialTheme.colorScheme.tertiary
                         )
                         StatCard(
                             modifier = Modifier.weight(1f),
                             title = "العمولات المستحقة",
-                            value = "642K",
+                            value = metrics.dueCommissions,
                             icon = Icons.Default.Money,
                             iconTint = MaterialTheme.colorScheme.warning
                         )
