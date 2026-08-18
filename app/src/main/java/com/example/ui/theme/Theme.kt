@@ -61,10 +61,10 @@ private val LightColorScheme = lightColorScheme(
 
 @Composable
 fun MyApplicationTheme(
-  darkTheme: Boolean = isSystemInDarkTheme(),
+  darkTheme: Boolean = false, // Always use light theme
   content: @Composable () -> Unit,
 ) {
-  val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+  val colorScheme = LightColorScheme
   val customColors = CustomColors(warning = WarningOrange)
 
   CompositionLocalProvider(LocalCustomColors provides customColors) {

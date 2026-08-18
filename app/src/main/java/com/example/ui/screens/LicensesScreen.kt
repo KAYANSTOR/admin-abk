@@ -25,7 +25,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import java.util.UUID
-import com.example.ui.LicenseItem
 import com.example.ui.components.SearchAndFilterHeader
 
 data class LicenseModel(
@@ -108,8 +107,9 @@ fun LicensesScreen(viewModel: LicensesViewModel = viewModel()) {
             modifier = Modifier
                 .padding(16.dp)
                 .align(Alignment.BottomStart),
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary
+            containerColor = com.example.ui.theme.AccentPink,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            shape = RoundedCornerShape(16.dp)
         ) {
             Icon(Icons.Default.Add, contentDescription = "إضافة ترخيص")
         }

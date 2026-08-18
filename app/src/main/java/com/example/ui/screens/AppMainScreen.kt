@@ -31,7 +31,7 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppMainScreen(
-    usersViewModel: UsersViewModel = viewModel(),
+    clientsViewModel: ClientsViewModel = viewModel(),
     serialsViewModel: SerialsViewModel = viewModel(),
     subscriptionsViewModel: SubscriptionsViewModel = viewModel(),
     commissionsViewModel: CommissionsViewModel = viewModel()
@@ -42,78 +42,24 @@ fun AppMainScreen(
     var showCreateUserDialog by remember { mutableStateOf(false) }
 
     val bottomItems = listOf(
-        NavigationItem("dashboard", "التقارير", Icons.Default.Analytics),
-        NavigationItem("serials", "السيريالات", Icons.Default.VpnKey),
-        NavigationItem("commissions", "العمولات", Icons.Default.Money),
+        NavigationItem("dashboard", "الرئيسية", Icons.Default.Home),
+        NavigationItem("clients", "العملاء", Icons.Default.Group),
+        NavigationItem("licenses", "التراخيص", Icons.Default.VpnKey),
+        NavigationItem("commissions", "التقارير", Icons.Default.BarChart),
         NavigationItem("settings", "الإعدادات", Icons.Default.Settings)
     )
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
 
-    var currentTitle = "KayanSoft | مركز الإدارة"
-    bottomItems.forEach { item ->
-        if (item.route == currentDestination?.route) {
-            currentTitle = item.title
-        }
-    }
-
     Scaffold(
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Text(
-                        currentTitle,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp
-                    )
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground
-                ),
-                modifier = Modifier.border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    shape = RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp)
-                )
-            )
-        },
         bottomBar = {
             BottomAppBar(
                 containerColor = MaterialTheme.colorScheme.surface,
                 contentColor = MaterialTheme.colorScheme.onSurface,
                 tonalElevation = 8.dp,
                 actions = {
-                    bottomItems.take(2).forEach { item ->
-                        val selected = currentDestination?.hierarchy?.any { it.route == item.route } == true
-                        IconButton(
-                            onClick = {
-                                navController.navigate(item.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(
-                                    item.icon, 
-                                    contentDescription = item.title,
-                                    tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = item.title, 
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
-                                )
-                            }
-                        }
-                    }
-                    Spacer(modifier = Modifier.weight(1f)) // Space for FAB
-                    bottomItems.drop(2).forEach { item ->
+                    bottomItems.forEach { item ->
                         val selected = currentDestination?.hierarchy?.any { it.route == item.route } == true
                         IconButton(
                             onClick = {
@@ -146,14 +92,14 @@ fun AppMainScreen(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showQuickActions = true },
-                containerColor = MaterialTheme.colorScheme.primary,
+                containerColor = com.example.ui.theme.AccentPink,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
-                shape = CircleShape
+                shape = RoundedCornerShape(16.dp)
             ) {
                 Icon(Icons.Default.Add, contentDescription = "إجراءات سريعة")
             }
         },
-        floatingActionButtonPosition = FabPosition.Center,
+        floatingActionButtonPosition = FabPosition.Start,
         containerColor = MaterialTheme.colorScheme.background
     ) { innerPadding ->
         NavHost(
@@ -161,10 +107,12 @@ fun AppMainScreen(
             startDestination = "dashboard",
             modifier = Modifier.padding(innerPadding)
         ) {
-            composable("dashboard") { DashboardScreen() }
-            composable("users") { UsersScreen(usersViewModel) }
+            composable("dashboard") { DashboardScreen(navController = navController) }
+            composable("clients") { ClientsScreen(navController = navController) }
+            composable("client_profile") { ClientProfileScreen(onBackClick = { navController.popBackStack() }) }
             composable("licenses") { LicensesScreen() }
             composable("serials") { SerialsScreen(serialsViewModel) }
+            composable("create_serial") { CreateSerialScreen(onBackClick = { navController.popBackStack() }, onActivate = { navController.navigate("clients") { popUpTo("dashboard") } }) }
             composable("subscriptions") { SubscriptionsScreen(subscriptionsViewModel) }
             composable("sales") { SalesScreen() }
             composable("commissions") { CommissionsScreen(commissionsViewModel) }
@@ -190,11 +138,11 @@ fun AppMainScreen(
                     )
                     
                     QuickActionItem(
-                        title = "إنشاء سيريال جديد",
+                        title = "إنشاء سيريال للعميل",
                         icon = Icons.Default.VpnKey,
                         onClick = { 
                             showQuickActions = false
-                            showCreateSerialDialog = true 
+                            navController.navigate("create_serial") 
                         }
                     )
                     QuickActionItem(
@@ -235,18 +183,8 @@ fun AppMainScreen(
         }
         
         if (showCreateUserDialog) {
-            CreateUserDialog(
-                onDismiss = { showCreateUserDialog = false },
-                onCreate = { name, role ->
-                    usersViewModel.addUser(name, role)
-                    showCreateUserDialog = false
-                    navController.navigate("users") {
-                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
-                }
-            )
+            // Keep state or remove logic entirely
+            showCreateUserDialog = false
         }
         
         if (showCreateSerialDialog) {

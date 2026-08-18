@@ -138,8 +138,9 @@ fun SerialsScreen(viewModel: SerialsViewModel = viewModel()) {
             modifier = Modifier
                 .padding(16.dp)
                 .align(Alignment.BottomStart),
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary
+            containerColor = com.example.ui.theme.AccentPink,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            shape = RoundedCornerShape(16.dp)
         ) {
             Icon(Icons.Default.Add, contentDescription = "توليد سيريال جديد")
         }
