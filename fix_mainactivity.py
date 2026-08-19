@@ -1,4 +1,10 @@
-package com.example
+import re
+
+filepath = "/app/applet/app/src/main/java/com/example/MainActivity.kt"
+with open(filepath, "r", encoding="utf-8") as f:
+    content = f.read()
+
+new_content = """package com.example
 
 import android.Manifest
 import android.content.Context
@@ -79,3 +85,8 @@ class MainActivity : ComponentActivity() {
             }
     }
 }
+"""
+
+with open(filepath, "w", encoding="utf-8") as f:
+    f.write(new_content)
+

@@ -1,7 +1,13 @@
-package com.example.ui.screens
+import re
+
+filepath = "/app/applet/app/src/main/java/com/example/ui/screens/EmployeesScreen.kt"
+
+with open(filepath, "r", encoding="utf-8") as f:
+    content = f.read()
+
+new_content = """package com.example.ui.screens
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -59,17 +65,9 @@ class EmployeesViewModel : ViewModel() {
         }
     }
 
-    
     fun toggleUserStatus(user: UserModel) {
         db.collection("users").document(user.id).update("isActive", !user.isActive)
     }
-
-    fun updateUserPermissions(user: UserModel) {
-        db.collection("users").document(user.id).update(
-            "permissions", user.permissions
-        )
-    }
-
 }
 
 @Composable
@@ -77,10 +75,7 @@ fun EmployeesScreen(viewModel: EmployeesViewModel = viewModel()) {
     val users by viewModel.users.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     var searchQuery by remember { mutableStateOf("") }
-    
     var showAddDialog by remember { mutableStateOf(false) }
-    var selectedUserForEdit by remember { mutableStateOf<UserModel?>(null) }
-
 
     val filteredUsers = users.filter { it.name.contains(searchQuery, ignoreCase = true) || it.role.contains(searchQuery, ignoreCase = true) }
 
@@ -124,36 +119,21 @@ fun EmployeesScreen(viewModel: EmployeesViewModel = viewModel()) {
                 item { CircularProgressIndicator(modifier = Modifier.padding(16.dp)) }
             } else {
                 items(filteredUsers, key = { it.id }) { user ->
-                    EmployeeCard(user, onToggleStatus = { viewModel.toggleUserStatus(user) }, onEditClick = { selectedUserForEdit = user })
+                    EmployeeCard(user, onToggleStatus = { viewModel.toggleUserStatus(user) })
                 }
             }
         }
     }
     
-    
     if (showAddDialog) {
         CreateEmployeeDialog(onDismiss = { showAddDialog = false })
     }
-    
-    if (selectedUserForEdit != null) {
-        EditEmployeeDialog(
-            user = selectedUserForEdit!!, 
-            onDismiss = { selectedUserForEdit = null },
-            onSave = { updatedUser -> 
-                viewModel.updateUserPermissions(updatedUser)
-                selectedUserForEdit = null
-            }
-        )
-    }
-
 }
 
 @Composable
-
-fun EmployeeCard(user: UserModel, onToggleStatus: () -> Unit, onEditClick: () -> Unit) {
+fun EmployeeCard(user: UserModel, onToggleStatus: () -> Unit) {
     Card(
-        modifier = Modifier.fillMaxWidth().clickable { onEditClick() },
-
+        modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant),
         shape = RoundedCornerShape(12.dp)
@@ -198,59 +178,7 @@ fun EmployeeCard(user: UserModel, onToggleStatus: () -> Unit, onEditClick: () ->
         }
     }
 }
+"""
 
-
-@Composable
-fun EditEmployeeDialog(user: UserModel, onDismiss: () -> Unit, onSave: (UserModel) -> Unit) {
-    val permissionOptions = listOf(
-        "clients" to "إدارة العملاء",
-        "licenses" to "إدارة التراخيص",
-        "serials" to "إدارة السيريالات",
-        "commissions" to "إدارة التقارير والعمولات",
-        "subscriptions" to "إدارة الاشتراكات"
-    )
-    var selectedPermissions by remember { mutableStateOf(user.permissions.toSet()) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("تعديل صلاحيات ${user.name}") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("الصلاحيات الممنوحة:", style = MaterialTheme.typography.titleSmall)
-                permissionOptions.forEach { (route, title) ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                selectedPermissions = if (selectedPermissions.contains(route)) {
-                                    selectedPermissions - route
-                                } else {
-                                    selectedPermissions + route
-                                }
-                            }
-                            .padding(vertical = 4.dp)
-                    ) {
-                        Checkbox(
-                            checked = selectedPermissions.contains(route),
-                            onCheckedChange = { checked ->
-                                selectedPermissions = if (checked) selectedPermissions + route else selectedPermissions - route
-                            }
-                        )
-                        Text(text = title)
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            Button(onClick = {
-                onSave(user.copy(permissions = selectedPermissions.toList()))
-            }) {
-                Text("حفظ التعديلات")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("إلغاء") }
-        }
-    )
-}
+with open(filepath, "w", encoding="utf-8") as f:
+    f.write(new_content)

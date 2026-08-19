@@ -1,4 +1,10 @@
-package com.example.ui.navigation
+import re
+
+filepath = "/app/applet/app/src/main/java/com/example/ui/navigation/AppNavigation.kt"
+with open(filepath, "r", encoding="utf-8") as f:
+    content = f.read()
+
+new_content = """package com.example.ui.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.navigation.compose.NavHost
@@ -33,3 +39,8 @@ fun AppNavigation(isLoggedIn: Boolean, startRoute: String? = null, onLoginSucces
         }
     }
 }
+"""
+
+with open(filepath, "w", encoding="utf-8") as f:
+    f.write(new_content)
+

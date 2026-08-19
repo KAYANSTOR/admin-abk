@@ -1,4 +1,7 @@
-package com.example.ui
+import re
+filepath = "/app/applet/app/src/main/java/com/example/ui/DashboardScreen.kt"
+
+content = """package com.example.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -177,12 +180,24 @@ fun DashboardScreen(navController: NavController? = null, authViewModel: AuthVie
     val userName = currentUser?.name ?: "مدير النظام"
 
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-        PullToRefreshBox(
-            isRefreshing = isRefreshing,
-            onRefresh = { viewModel.refresh() },
+        val pullRefreshState = rememberPullToRefreshState()
+        
+        if (pullRefreshState.isRefreshing) {
+            LaunchedEffect(true) {
+                viewModel.refresh()
+            }
+        }
+        LaunchedEffect(isRefreshing) {
+            if (!isRefreshing) {
+                pullRefreshState.endRefresh()
+            }
+        }
+
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color(0xFFF8F9FA))
+                .nestedScroll(pullRefreshState.nestedScrollConnection)
         ) {
             Column(
                 modifier = Modifier
@@ -231,6 +246,13 @@ fun DashboardScreen(navController: NavController? = null, authViewModel: AuthVie
                 
                 Spacer(modifier = Modifier.height(32.dp))
             }
+            
+            PullToRefreshContainer(
+                state = pullRefreshState,
+                modifier = Modifier.align(Alignment.TopCenter),
+                containerColor = Color.White,
+                contentColor = TealGradientStart
+            )
         }
     }
 }
@@ -508,3 +530,8 @@ fun SalesCardMin(modifier: Modifier, title: String, value: String) {
         }
     }
 }
+"""
+
+with open(filepath, "w", encoding="utf-8") as f:
+    f.write(content)
+

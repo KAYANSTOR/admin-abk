@@ -18,7 +18,8 @@ data class UserModel(
     val phone: String = "",
     val pin: String = "",
     val role: String = "EMPLOYEE", // "ADMIN" or "EMPLOYEE"
-    val permissions: List<String> = emptyList() // List of routes e.g. "clients", "licenses"
+    val permissions: List<String> = emptyList(), // List of routes e.g. "clients", "licenses"
+    val isActive: Boolean = true
 )
 
 class AuthViewModel : ViewModel() {

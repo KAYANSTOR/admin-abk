@@ -1,4 +1,15 @@
-package com.example.ui.screens
+import re
+
+filepath = "/app/applet/app/src/main/java/com/example/ui/screens/SettingsScreen.kt"
+
+with open(filepath, "r", encoding="utf-8") as f:
+    content = f.read()
+
+# I see `item { Card(...) } } } item {` meaning there is an extra `}` 
+content = content.replace("                }\n            }\n        }\n        \n        item {\n            if (isAdmin) {", "                }\n            }\n        }\n        \n        if (isAdmin) {\n        item {")
+
+# To fix this faster, let's just rewrite SettingsScreen cleanly.
+new_content = """package com.example.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -356,3 +367,7 @@ fun SettingsCard(title: String, subtitle: String, icon: ImageVector) {
         }
     }
 }
+"""
+
+with open(filepath, "w", encoding="utf-8") as f:
+    f.write(new_content)

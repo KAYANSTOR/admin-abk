@@ -1,4 +1,12 @@
-package com.example.ui.screens
+import re
+
+filepath = "/app/applet/app/src/main/java/com/example/ui/screens/SalesScreen.kt"
+
+with open(filepath, "r", encoding="utf-8") as f:
+    content = f.read()
+
+# Replace the entire SalesScreen with one that has a ViewModel and uses real data.
+new_content = """package com.example.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -230,3 +238,9 @@ fun SaleTransactionItem(invoice: String, network: String, amount: String, items:
         }
     }
 }
+"""
+
+with open(filepath, "w", encoding="utf-8") as f:
+    f.write(new_content)
+
+print("SalesScreen updated")

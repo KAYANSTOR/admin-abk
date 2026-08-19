@@ -77,11 +77,11 @@ class ClientsViewModel : ViewModel() {
 }
 
 @Composable
-fun ClientsScreen(viewModel: ClientsViewModel = viewModel(), navController: NavController? = null) {
+fun ClientsScreen(viewModel: ClientsViewModel = viewModel(), navController: NavController? = null, initialTab: Int = 0) {
     val clients by viewModel.clients.collectAsState()
     var searchQuery by remember { mutableStateOf("") }
     
-    var selectedTabIndex by remember { mutableStateOf(0) }
+    var selectedTabIndex by remember { mutableStateOf(initialTab) }
     val tabs = listOf("العملاء المفعلين", "الفترة التجريبية")
 
     val filteredClients = clients.filter {
