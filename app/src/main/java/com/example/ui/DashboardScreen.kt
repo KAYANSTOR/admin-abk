@@ -25,8 +25,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -59,9 +57,9 @@ data class DashboardMetrics(
     val activeSubscriptions: Int = 0,
     val activeClients: Int = 0,
     val totalCommissions: String = "0",
+    val pendingCommissions: String = "0",
     val todaySalesValue: String = "0",
-    val monthSalesValue: String = "0",
-    val totalRevenue: String = "0"
+    val monthSalesValue: String = "0"
 )
 
 class DashboardViewModel : ViewModel() {
@@ -93,7 +91,9 @@ class DashboardViewModel : ViewModel() {
                 if (snapshot != null) {
                     val activeCount = snapshot.documents.count { it.getString("statusTypeString") == "SUCCESS" }
                     val trialCount = snapshot.documents.count { 
-                        it.getString("plan")?.contains("تجريب", ignoreCase = true) == true
+                        val plan = it.getString("plan") ?: ""
+                        val statusText = it.getString("statusText") ?: ""
+                        plan.contains("تجريب", ignoreCase = true) || statusText.contains("تجريب", ignoreCase = true)
                     }
                     _metrics.value = _metrics.value.copy(
                         activeSubscriptions = activeCount,
@@ -104,9 +104,21 @@ class DashboardViewModel : ViewModel() {
             
             db.collection("commissions").addSnapshotListener { snapshot: QuerySnapshot?, _ ->
                 if (snapshot != null) {
-                    val total = snapshot.documents.sumOf { (it.getString("amount")?.replace(",", "")?.toDoubleOrNull() ?: 0.0) }
+                    var total = 0.0
+                    var pending = 0.0
+                    for (doc in snapshot.documents) {
+                        val amountStr = doc.getString("commissionAmount") ?: doc.getString("amount") ?: "0"
+                        val amount = amountStr.replace(",", "").toDoubleOrNull() ?: 0.0
+                        total += amount
+                        
+                        val status = doc.getString("statusTypeString") ?: "WARNING"
+                        if (status == "WARNING") {
+                            pending += amount
+                        }
+                    }
                     _metrics.value = _metrics.value.copy(
-                        totalCommissions = NumberFormat.getNumberInstance(Locale.US).format(total)
+                        totalCommissions = NumberFormat.getNumberInstance(Locale.US).format(total),
+                        pendingCommissions = NumberFormat.getNumberInstance(Locale.US).format(pending)
                     )
                 }
             }
@@ -126,20 +138,17 @@ class DashboardViewModel : ViewModel() {
                     
                     var todayTotal = 0.0
                     var monthTotal = 0.0
-                    var allTotal = 0.0
                     
                     for (doc in snapshot.documents) {
                         val amount = doc.getString("amount")?.replace(",", "")?.toDoubleOrNull() ?: 0.0
                         val timestamp = doc.getLong("timestamp") ?: 0L
                         
-                        allTotal += amount
                         if (timestamp >= monthStart) monthTotal += amount
                         if (timestamp >= todayStart) todayTotal += amount
                     }
                     _metrics.value = _metrics.value.copy(
                         todaySalesValue = NumberFormat.getNumberInstance(Locale.US).format(todayTotal),
-                        monthSalesValue = NumberFormat.getNumberInstance(Locale.US).format(monthTotal),
-                        totalRevenue = NumberFormat.getNumberInstance(Locale.US).format(allTotal)
+                        monthSalesValue = NumberFormat.getNumberInstance(Locale.US).format(monthTotal)
                     )
                 }
             }
@@ -160,7 +169,7 @@ class DashboardViewModel : ViewModel() {
     fun refresh() {
         viewModelScope.launch {
             _isRefreshing.value = true
-            delay(1200) // Simulated sync delay as Firebase is real-time anyway
+            delay(1200)
             _isRefreshing.value = false
         }
     }
@@ -191,14 +200,17 @@ fun DashboardScreen(navController: NavController? = null, authViewModel: AuthVie
             ) {
                 DashboardHeader(userName = userName, date = "الأربعاء، 19 أغسطس 2026")
                 
-                HeroRevenueCard(amount = metrics.totalRevenue)
+                HeroRevenueCard(
+                    amount = metrics.pendingCommissions,
+                    onClick = { navController?.navigate("commissions") }
+                )
                 
                 Spacer(modifier = Modifier.height(24.dp))
                 
                 // 2x2 Grid for KPIs
                 Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        KpiCard(Modifier.weight(1f), "العمولات", metrics.totalCommissions, GreenIcon, Icons.Default.Payments)
+                        KpiCard(Modifier.weight(1f), "إجمالي العمولات", metrics.totalCommissions, GreenIcon, Icons.Default.Payments)
                         KpiCard(Modifier.weight(1f), "عملاء نشطون", metrics.activeClients.toString(), BlueIcon, Icons.Default.VpnKey)
                     }
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -281,13 +293,14 @@ fun DashboardHeader(userName: String, date: String) {
 }
 
 @Composable
-fun HeroRevenueCard(amount: String) {
+fun HeroRevenueCard(amount: String, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 24.dp)
             .height(170.dp)
             .clip(RoundedCornerShape(24.dp))
+            .clickable { onClick() }
             .background(Brush.horizontalGradient(listOf(PurpleGradientEnd, TealGradientStart)))
     ) {
         Canvas(modifier = Modifier.fillMaxWidth(0.55f).fillMaxHeight().padding(top = 40.dp).align(Alignment.CenterStart)) {
@@ -319,7 +332,7 @@ fun HeroRevenueCard(amount: String) {
             }
             Spacer(modifier = Modifier.height(16.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("إجمالي الإيرادات", color = Color.White.copy(alpha = 0.9f), fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                Text("العمولات المعلقة", color = Color.White.copy(alpha = 0.9f), fontSize = 15.sp, fontWeight = FontWeight.Medium)
             }
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("ري", color = Color.White, fontSize = 20.sp, modifier = Modifier.padding(bottom = 6.dp), fontWeight = FontWeight.Bold)
@@ -408,7 +421,7 @@ fun LatestClientsSection(navController: NavController?, clients: List<ClientMode
                             badgeColor = badgeColor
                         )
                         if (index < clients.size - 1) {
-                            Divider(modifier = Modifier.padding(vertical = 8.dp), color = Color.LightGray.copy(alpha = 0.5f))
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = Color.LightGray.copy(alpha = 0.5f))
                         }
                     }
                 }
