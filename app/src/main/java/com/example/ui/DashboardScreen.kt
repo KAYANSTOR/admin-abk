@@ -82,7 +82,12 @@ class DashboardViewModel : ViewModel() {
         viewModelScope.launch {
             db.collection("clients").addSnapshotListener { snapshot: QuerySnapshot?, _ ->
                 if (snapshot != null) {
-                    val count = snapshot.documents.count { it.getBoolean("isActive") == true }
+                    val count = snapshot.documents.count {
+                        val status = it.getString("status") ?: ""
+                        val isActiveLegacy = it.getBoolean("isActive") ?: true
+                        val displayStatus = if (status.isNotEmpty()) status else if (isActiveLegacy) "ACTIVE" else "SUSPENDED"
+                        displayStatus in listOf("ACTIVE", "WARNING", "GRACE_PERIOD")
+                    }
                     _metrics.value = _metrics.value.copy(activeClients = count)
                 }
             }
@@ -109,10 +114,11 @@ class DashboardViewModel : ViewModel() {
                     for (doc in snapshot.documents) {
                         val amountStr = doc.getString("commissionAmount") ?: doc.getString("amount") ?: "0"
                         val amount = amountStr.replace(",", "").toDoubleOrNull() ?: 0.0
-                        total += amount
                         
                         val status = doc.getString("statusTypeString") ?: "WARNING"
-                        if (status == "WARNING") {
+                        if (status == "SUCCESS") {
+                            total += amount
+                        } else if (status == "WARNING") {
                             pending += amount
                         }
                     }
@@ -155,27 +161,33 @@ class DashboardViewModel : ViewModel() {
         }
     }
     
+    
+    fun refresh() {
+        _isRefreshing.value = true
+        fetchMetrics()
+        fetchLatestClients()
+        // Simulate network delay
+        viewModelScope.launch {
+            kotlinx.coroutines.delay(1000)
+            _isRefreshing.value = false
+        }
+    }
+
     private fun fetchLatestClients() {
         db.collection("clients")
             .limit(4)
             .addSnapshotListener { snapshot: QuerySnapshot?, _ ->
                 if (snapshot != null) {
                     val list = snapshot.documents.mapNotNull { it.toObject(ClientModel::class.java)?.copy(id = it.id) }
-                    _latestClients.value = list
+                    _latestClients.value = list.sortedByDescending { it.id }.take(4) // Fallback sorting
                 }
             }
     }
-
-    fun refresh() {
-        viewModelScope.launch {
-            _isRefreshing.value = true
-            delay(1200)
-            _isRefreshing.value = false
-        }
-    }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+
+
+@kotlin.OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(navController: NavController? = null, authViewModel: AuthViewModel = viewModel(), viewModel: DashboardViewModel = viewModel()) {
     val currentUser by authViewModel.currentUser.collectAsState()
@@ -210,12 +222,12 @@ fun DashboardScreen(navController: NavController? = null, authViewModel: AuthVie
                 // 2x2 Grid for KPIs
                 Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        KpiCard(Modifier.weight(1f), "إجمالي العمولات", metrics.totalCommissions, GreenIcon, Icons.Default.Payments)
-                        KpiCard(Modifier.weight(1f), "عملاء نشطون", metrics.activeClients.toString(), BlueIcon, Icons.Default.VpnKey)
+                        KpiCard(Modifier.weight(1f), "إجمالي العمولات", metrics.totalCommissions, GreenIcon, Icons.Default.Payments, onClick = { navController?.navigate("commissions") })
+                        KpiCard(Modifier.weight(1f), "عملاء نشطون", metrics.activeClients.toString(), BlueIcon, Icons.Default.VpnKey, onClick = { navController?.navigate("clients") })
                     }
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        KpiCard(Modifier.weight(1f), "اشتراكات نشطة", metrics.activeSubscriptions.toString(), OrangeIcon, Icons.Default.Group)
-                        KpiCard(Modifier.weight(1f), "فترة تجريبية", metrics.trialCount.toString(), PurpleIcon, Icons.Default.AccessTime)
+                        KpiCard(Modifier.weight(1f), "اشتراكات نشطة", metrics.activeSubscriptions.toString(), OrangeIcon, Icons.Default.Group, onClick = { navController?.navigate("subscriptions") })
+                        KpiCard(Modifier.weight(1f), "فترة تجريبية", metrics.trialCount.toString(), PurpleIcon, Icons.Default.AccessTime, onClick = { navController?.navigate("subscriptions?filter=trial") })
                     }
                 }
                 
@@ -247,8 +259,9 @@ fun DashboardScreen(navController: NavController? = null, authViewModel: AuthVie
     }
 }
 
+
 @Composable
-fun DashboardHeader(userName: String, date: String) {
+fun DashboardHeader(userName: String, date: String, navController: NavController? = null) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 24.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -268,13 +281,13 @@ fun DashboardHeader(userName: String, date: String) {
         Column(horizontalAlignment = Alignment.End) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Box(
-                    modifier = Modifier.size(40.dp).clip(CircleShape).background(Color.White),
+                    modifier = Modifier.size(40.dp).clip(CircleShape).background(Color.White).clickable { navController?.navigate("settings") },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(Icons.Default.Settings, contentDescription = "Settings", tint = PrimaryDark)
                 }
                 Box(
-                    modifier = Modifier.size(40.dp).clip(CircleShape).background(Color.White),
+                    modifier = Modifier.size(40.dp).clip(CircleShape).background(Color.White).clickable { navController?.navigate("notifications") },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(Icons.Default.Notifications, contentDescription = "Notifications", tint = PrimaryDark)
@@ -291,6 +304,7 @@ fun DashboardHeader(userName: String, date: String) {
         }
     }
 }
+
 
 @Composable
 fun HeroRevenueCard(amount: String, onClick: () -> Unit) {
@@ -342,10 +356,11 @@ fun HeroRevenueCard(amount: String, onClick: () -> Unit) {
     }
 }
 
+
 @Composable
-fun KpiCard(modifier: Modifier, title: String, value: String, color: Color, icon: ImageVector) {
+fun KpiCard(modifier: Modifier, title: String, value: String, color: Color, icon: ImageVector, onClick: () -> Unit = {}) {
     Card(
-        modifier = modifier.height(105.dp),
+        modifier = modifier.height(105.dp).clickable { onClick() },
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp, pressedElevation = 4.dp)
@@ -369,6 +384,7 @@ fun KpiCard(modifier: Modifier, title: String, value: String, color: Color, icon
     }
 }
 
+
 @Composable
 fun QuickActionCard(modifier: Modifier, title: String, icon: ImageVector, color: Color, onClick: () -> Unit) {
     Card(
@@ -389,6 +405,7 @@ fun QuickActionCard(modifier: Modifier, title: String, icon: ImageVector, color:
     }
 }
 
+
 @Composable
 fun LatestClientsSection(navController: NavController?, clients: List<ClientModel>) {
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 24.dp)) {
@@ -408,9 +425,9 @@ fun LatestClientsSection(navController: NavController?, clients: List<ClientMode
             ) {
                 Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                     clients.forEachIndexed { index, client ->
-                        val badgeColor = if (client.isActive) GreenIcon else Color.Red
-                        val statusText = if (client.isActive) "نشط" else "موقوف"
-                        val remainingText = if (client.isActive) "اشتراك فعال" else "متوقف"
+                        val badgeColor = if (client.isEffectivelyActive) GreenIcon else Color.Red
+                        val statusText = if (client.isEffectivelyActive) "نشط" else "موقوف"
+                        val remainingText = if (client.isEffectivelyActive) "اشتراك فعال" else "متوقف"
                         
                         LatestClientItem(
                             name = client.name.ifEmpty { "عميل غير مسمى" },
@@ -429,6 +446,7 @@ fun LatestClientsSection(navController: NavController?, clients: List<ClientMode
         }
     }
 }
+
 
 @Composable
 fun LatestClientItem(name: String, phone: String, statusText: String, badgeText: String, avatarColor: Color, badgeColor: Color) {
@@ -460,6 +478,7 @@ fun LatestClientItem(name: String, phone: String, statusText: String, badgeText:
     }
 }
 
+
 @Composable
 fun SalesOverviewSection(metrics: DashboardMetrics, navController: NavController?) {
     Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)) {
@@ -488,6 +507,7 @@ fun SalesOverviewSection(metrics: DashboardMetrics, navController: NavController
         }
     }
 }
+
 
 @Composable
 fun SalesCardMin(modifier: Modifier, title: String, value: String) {

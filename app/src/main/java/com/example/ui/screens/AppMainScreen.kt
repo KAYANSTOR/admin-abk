@@ -199,7 +199,10 @@ fun AppMainScreen(
             composable("clients?tab={tab}", arguments = listOf(androidx.navigation.navArgument("tab") { defaultValue = 0; type = androidx.navigation.NavType.IntType })) { backStackEntry ->
                 ClientsScreen(navController = navController, initialTab = backStackEntry.arguments?.getInt("tab") ?: 0)
             }
-            composable("client_profile") { ClientProfileScreen(onBackClick = { navController.popBackStack() }) }
+            composable("client_profile/{clientId}", arguments = listOf(androidx.navigation.navArgument("clientId") { type = androidx.navigation.NavType.StringType })) { backStackEntry ->
+                val clientId = backStackEntry.arguments?.getString("clientId") ?: ""
+                ClientProfileScreen(clientId = clientId, onBackClick = { navController.popBackStack() })
+            }
             composable("licenses") { LicensesScreen() }
             composable("serials") { SerialsScreen(serialsViewModel) }
             composable("create_serial") { CreateSerialScreen(onBackClick = { navController.popBackStack() }, onActivate = { navController.navigate("clients") { popUpTo("dashboard") } }) }
@@ -218,7 +221,13 @@ fun AppMainScreen(
                 }, 
                 onManageEmployeesClick = { navController.navigate("employees") }, 
                 currentUser = currentUser,
-                isAdmin = currentUser?.role == "ADMIN"
+                isAdmin = currentUser?.role == "ADMIN",
+                onChangePin = { oldPin, newPin, onSuccess, onError ->
+                    authViewModel.changePin(oldPin, newPin, onSuccess, onError)
+                },
+                onToggleNotifications = { enabled ->
+                    authViewModel.toggleNotifications(enabled)
+                }
             ) }
         }
 

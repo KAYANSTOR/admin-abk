@@ -1,358 +1,379 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material.icons.filled.Settings
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
-import androidx.compose.material.icons.filled.Badge
+import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.background
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.draw.clip
-import androidx.compose.foundation.clickable
-import androidx.compose.material.icons.filled.People
-import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.filled.Percent
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.window.Dialog
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.runtime.*
 import com.example.ui.auth.UserModel
 
 @Composable
-fun SettingsScreen(onLogout: () -> Unit = {}, onManageEmployeesClick: () -> Unit = {}, currentUser: UserModel? = null, isAdmin: Boolean = false) {
-    var notificationsEnabled by remember { mutableStateOf(true) }
-    var twoFactorAuthEnabled by remember { mutableStateOf(false) }
+fun SettingsScreen(
+    viewModel: SettingsViewModel = viewModel(),
+
+    onLogout: () -> Unit = {},
+    onManageEmployeesClick: () -> Unit = {},
+    currentUser: UserModel? = null,
+    isAdmin: Boolean = false,
+    onChangePin: (String, String, () -> Unit, (String) -> Unit) -> Unit = { _, _, _, _ -> },
+    onToggleNotifications: (Boolean) -> Unit = {}
+) {
+    val gradientStart = Color(0xFF0F766E) // teal-start (approx)
+    val gradientEnd = Color(0xFF7E22CE) // purple-end (approx)
+    val brush = Brush.linearGradient(colors = listOf(gradientStart, gradientEnd))
+    val brushLight = Brush.linearGradient(colors = listOf(gradientStart.copy(alpha=0.1f), gradientEnd.copy(alpha=0.1f)))
+
+    val commissionPercentage by viewModel.commissionPercentage.collectAsState()
+    var showCommissionDialog by remember { mutableStateOf(false) }
+    var percentageInput by remember { mutableStateOf("") }
+    
+    var showPinDialog by remember { mutableStateOf(false) }
+    var oldPin by remember { mutableStateOf("") }
+    var newPin by remember { mutableStateOf("") }
+    var pinError by remember { mutableStateOf<String?>(null) }
+
+
 
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(top = 16.dp, bottom = 80.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        contentPadding = PaddingValues(top = 16.dp, bottom = 100.dp),
+        verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
         item {
             Text(
-                text = "الإعدادات العامة",
+                text = "الإعدادات",
                 style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Black,
                 color = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.padding(bottom = 8.dp)
+                modifier = Modifier.padding(bottom = 8.dp).fillMaxWidth(),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
         }
 
         if (currentUser != null) {
             item {
                 Card(
-                    modifier = Modifier.fillMaxWidth().height(120.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(24.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant)
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(64.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFFE2E8F0)), // Slate 200 light gray
-                            contentAlignment = Alignment.Center
+                    Box(modifier = Modifier.fillMaxWidth().height(260.dp), contentAlignment = Alignment.TopCenter) {
+                        // Header Gradient Background
+                        Box(modifier = Modifier.fillMaxWidth().height(96.dp).background(brushLight))
+
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(top = 40.dp, bottom = 24.dp, start = 24.dp, end = 24.dp)
                         ) {
-                            Icon(
-                                Icons.Default.Person,
-                                contentDescription = null,
-                                tint = Color(0xFF64748B), // Slate 500
-                                modifier = Modifier.size(36.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(verticalArrangement = Arrangement.Center) {
+                            // Avatar
+                            Box(
+                                modifier = Modifier
+                                    .size(84.dp)
+                                    .clip(CircleShape)
+                                    .background(brush)
+                                    .padding(4.dp) // for border
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(CircleShape)
+                                        .background(brush),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = currentUser.name.firstOrNull()?.toString()?.uppercase() ?: "?",
+                                        color = Color.White,
+                                        fontSize = 32.sp,
+                                        fontWeight = FontWeight.Black
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
                             Text(
                                 text = currentUser.name,
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF1E293B) // Slate 800 (PrimaryDark equivalent)
+                                fontSize = 22.sp,
+                                fontWeight = FontWeight.Black,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
-                            Spacer(modifier = Modifier.height(4.dp))
+
                             Text(
-                                text = if(currentUser.role == "ADMIN") "الإدارة العامة" else "موظف",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = Color(0xFF64748B) // Slate 500
+                                text = currentUser.phone,
+                                fontSize = 15.sp,
+                                color = Color.Gray,
+                                modifier = Modifier.padding(top = 4.dp),
+                                letterSpacing = 1.sp
                             )
-                        }
-                        Spacer(modifier = Modifier.weight(1f))
-                        Icon(
-                            Icons.Default.Settings,
-                            contentDescription = null,
-                            tint = Color(0xFF94A3B8) // Slate 400
-                        )
-                    }
-                }
-            }
-        }
 
-        item {
-            Text(
-                text = "المزامنة (Sync)",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
-            )
-            
-            var syncStatus by remember { mutableStateOf("آخر وقت مزامنة: قبل قليل") }
-            var isSyncing by remember { mutableStateOf(false) }
-            val coroutineScope = rememberCoroutineScope()
-            val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                            Spacer(modifier = Modifier.height(16.dp))
 
-            Card(
-                modifier = Modifier.fillMaxWidth().clickable {
-                    if (!isSyncing) {
-                        isSyncing = true
-                        syncStatus = "جارٍ المزامنة..."
-                        coroutineScope.launch {
-                            try {
-                                kotlinx.coroutines.delay(2000)
-                                db.enableNetwork().await()
-                                syncStatus = "تمت المزامنة بنجاح"
-                            } catch (e: Exception) {
-                                syncStatus = "فشل المزامنة"
-                            } finally {
-                                isSyncing = false
+                            Box(
+                                modifier = Modifier
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), RoundedCornerShape(16.dp))
+                                    .padding(horizontal = 16.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = if (currentUser.role == "ADMIN") "مدير النظام" else "موظف",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
                             }
                         }
                     }
-                },
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Default.Sync,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "مزامنة البيانات الآن",
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = syncStatus,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if(syncStatus.contains("فشل")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    if (isSyncing) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    }
                 }
             }
-        }
-
-        item {
-            Text(
-                text = "التفضيلات",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
-            )
-        }
-
-        if (isAdmin) {
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth().clickable { onManageEmployeesClick() },
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.People,
-                            contentDescription = "إدارة الموظفين",
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.size(28.dp)
-                        )
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Text(
-                            text = "إدارة الموظفين والصلاحيات",
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
-                }
-            }
-        }
-        
-        item {
-            SettingsCard(
-                title = "اللغة",
-                subtitle = "العربية (متوفر الإنجليزية قريبًا)",
-                icon = Icons.Default.Language
-            )
-        }
-
-        item {
-            SettingsCardWithSwitch(
-                title = "الإشعارات",
-                subtitle = "تلقي تنبيهات عند تسجيل الدخول وإضافة السيريالات",
-                icon = Icons.Default.Notifications,
-                checked = notificationsEnabled,
-                onCheckedChange = { notificationsEnabled = it }
-            )
-        }
-
-        item {
-            SettingsCardWithSwitch(
-                title = "التحقق بخطوتين (2FA)",
-                subtitle = "حماية حساب المدير برمز تحقق إضافي",
-                icon = Icons.Default.Security,
-                checked = twoFactorAuthEnabled,
-                onCheckedChange = { twoFactorAuthEnabled = it }
-            )
-        }
-
-        item {
-            SettingsCard(
-                title = "عن النظام",
-                subtitle = "إصدار 1.0.0",
-                icon = Icons.Default.Info
-            )
         }
 
         item {
             Card(
-                modifier = Modifier.fillMaxWidth().clickable { onLogout() },
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error)
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(2.dp)
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.ExitToApp,
-                        contentDescription = "تسجيل خروج",
-                        tint = MaterialTheme.colorScheme.onErrorContainer,
-                        modifier = Modifier.size(28.dp)
+                Column {
+                    
+
+                    if (isAdmin) {
+                        SettingRow(
+                            icon = Icons.Default.People,
+                            title = "إدارة الموظفين",
+                            subtitle = "إضافة أو حذف مستخدمين وصلاحياتهم",
+                            onClick = onManageEmployeesClick
+                        )
+                        HorizontalDivider(color = Color.LightGray.copy(alpha = 0.3f))
+                    }
+                    SettingRow(
+                        icon = Icons.Default.Notifications,
+                        title = "الإشعارات",
+                        subtitle = "التحكم في تنبيهات النظام",
+                        trailingContent = {
+                            Switch(
+                                checked = (currentUser?.notificationsEnabled == true),
+                                onCheckedChange = { onToggleNotifications(it) }
+                            )
+                        },
+                        onClick = { onToggleNotifications(!(currentUser?.notificationsEnabled ?: false)) }
                     )
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Text(
-                        text = "تسجيل خروج",
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onErrorContainer
+                    HorizontalDivider(color = Color.LightGray.copy(alpha = 0.3f))
+                    SettingRow(
+                        icon = Icons.Default.Lock,
+                        title = "الأمان",
+                        subtitle = "تغيير رمز الدخول (PIN)",
+                        onClick = {
+                            oldPin = ""
+                            newPin = ""
+                            pinError = null
+                            showPinDialog = true
+                        }
+                    )
+                }
+            }
+        }
+
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(2.dp)
+            ) {
+                Column {
+                    SettingRow(
+                        icon = Icons.Default.Info,
+                        title = "المساعدة والدعم",
+                        onClick = {}
+                    )
+                    HorizontalDivider(color = Color.LightGray.copy(alpha = 0.3f))
+                    SettingRow(
+                        icon = Icons.Default.ExitToApp,
+                        title = "تسجيل الخروج",
+                        destructive = true,
+                        onClick = onLogout
                     )
                 }
             }
         }
     }
-}
 
-@Composable
-fun SettingsCardWithSwitch(title: String, subtitle: String, icon: ImageVector, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(28.dp)
-            )
-            Spacer(modifier = Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+    if (showCommissionDialog) {
+        AlertDialog(
+            onDismissRequest = { showCommissionDialog = false },
+            title = { Text("تعديل نسبة العمولة", fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text("أدخل النسبة المئوية (مثال: 20 لـ 20%):", fontSize = 14.sp, color = Color.Gray)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = percentageInput,
+                        onValueChange = { percentageInput = it },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val newPct = percentageInput.toDoubleOrNull()
+                        if (newPct != null) {
+                            viewModel.updateCommissionPercentage(newPct)
+                            showCommissionDialog = false
+                        }
+                    }
+                ) {
+                    Text("حفظ")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCommissionDialog = false }) {
+                    Text("إلغاء")
+                }
             }
-            Switch(
-                checked = checked,
-                onCheckedChange = onCheckedChange,
-                colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.colorScheme.primary, checkedTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
+        )
+    }
+
+        if (showPinDialog) {
+            AlertDialog(
+                onDismissRequest = { showPinDialog = false },
+                title = { Text("تغيير رمز الدخول (PIN)", fontWeight = FontWeight.Bold) },
+                text = {
+                    Column {
+                        if (pinError != null) {
+                            Text(pinError!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                        OutlinedTextField(
+                            value = oldPin,
+                            onValueChange = { if (it.length <= 4) oldPin = it },
+                            label = { Text("الرمز القديم") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = newPin,
+                            onValueChange = { if (it.length <= 4) newPin = it },
+                            label = { Text("الرمز الجديد (4 أرقام)") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = {
+                        onChangePin(oldPin, newPin, {
+                            showPinDialog = false
+                        }, { err ->
+                            pinError = err
+                        })
+                    }) {
+                        Text("حفظ")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showPinDialog = false }) {
+                        Text("إلغاء")
+                    }
+                }
             )
         }
-    }
 }
 
 @Composable
-fun SettingsCard(title: String, subtitle: String, icon: ImageVector) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant)
+
+
+fun SettingRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String? = null,
+    onClick: () -> Unit,
+    destructive: Boolean = false,
+    trailingContent: @Composable (() -> Unit)? = null
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(28.dp)
-            )
-            Spacer(modifier = Modifier.width(16.dp))
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            val iconBg = if (destructive) Color(0xFFFEF2F2) else MaterialTheme.colorScheme.background
+            val iconTint = if (destructive) Color(0xFFEF4444) else MaterialTheme.colorScheme.onSurface
+            
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(iconBg, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = iconTint,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            
             Column {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.bodyLarge,
+                    fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = if (destructive) Color(0xFFEF4444) else MaterialTheme.colorScheme.onSurface
                 )
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                if (subtitle != null) {
+                    Text(
+                        text = subtitle,
+                        fontSize = 12.sp,
+                        color = Color.Gray,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
             }
+        }
+        if (trailingContent != null) {
+            trailingContent()
+        } else if (!destructive) {
+            Icon(Icons.Default.ChevronLeft, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(20.dp))
         }
     }
 }
+
+

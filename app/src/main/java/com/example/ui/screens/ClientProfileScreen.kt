@@ -20,10 +20,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+import android.util.Log
+
 import java.util.UUID
 
 // Data layer for Client Profile
@@ -36,36 +43,80 @@ data class ClientProfileModel(
     val subscriptionExpiry: String?,
     val totalLicenses: Int,
     val totalSales: String,
-    val pendingCommissions: String
+    val pendingCommissions: String,
+    val commissionPercentage: Double = 0.0
 )
 
+
 class ClientProfileViewModel : ViewModel() {
-    private val _client = MutableStateFlow(
-        ClientProfileModel(
-            networkName = "شبكة جدة السريعة",
-            deviceId = "MAC-A1:B2:C3:D4:E5:F6",
-            phoneNumber = "+966 50 123 4567",
-            status = "نشط",
-            subscriptionExpiry = "2026-12-31",
-            totalLicenses = 45,
-            totalSales = "15,400 ر.ي",
-            pendingCommissions = "2,310 ر.ي"
-        )
-    )
-    val client: StateFlow<ClientProfileModel> = _client.asStateFlow()
+    private val db = FirebaseFirestore.getInstance()
+    private val _client = MutableStateFlow<ClientProfileModel?>(null)
+    val client: StateFlow<ClientProfileModel?> = _client.asStateFlow()
+
+    fun loadClient(clientId: String) {
+        viewModelScope.launch {
+            db.collection("clients").document(clientId).addSnapshotListener { snapshot, e ->
+                if (e != null || snapshot == null) return@addSnapshotListener
+                val name = snapshot.getString("name") ?: ""
+                val network = snapshot.getString("networkName") ?: snapshot.getString("storeName") ?: name
+                val phone = snapshot.getString("phone") ?: ""
+                val deviceId = snapshot.getString("deviceId") ?: ""
+                val status = snapshot.getString("status") ?: "ACTIVE"
+                val commission = snapshot.getDouble("commissionPercentage") ?: 0.0
+                
+                _client.value = ClientProfileModel(
+                    id = snapshot.id,
+                    networkName = network.ifEmpty { "عميل غير مسمى" },
+                    deviceId = deviceId,
+                    phoneNumber = phone,
+                    status = status,
+                    subscriptionExpiry = null,
+                    totalLicenses = 0,
+                    totalSales = "0",
+                    pendingCommissions = "0",
+                    commissionPercentage = commission
+                )
+            }
+        }
+    }
 
     fun updateStatus(newStatus: String) {
-        _client.value = _client.value.copy(status = newStatus)
+        val cid = _client.value?.id ?: return
+        viewModelScope.launch {
+            db.collection("clients").document(cid).update("status", newStatus)
+        }
+    }
+
+    fun updateCommission(newPct: Double) {
+        val cid = _client.value?.id ?: return
+        viewModelScope.launch {
+            db.collection("clients").document(cid).update("commissionPercentage", newPct)
+        }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
+
 @Composable
 fun ClientProfileScreen(
+    clientId: String = "",
     viewModel: ClientProfileViewModel = viewModel(),
     onBackClick: () -> Unit
 ) {
+    LaunchedEffect(clientId) {
+        if (clientId.isNotEmpty()) {
+            viewModel.loadClient(clientId)
+        }
+    }
     val client by viewModel.client.collectAsState()
+    
+    if (client == null) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+        return
+    }
+
     val scrollState = rememberScrollState()
     var showActionSheet by remember { mutableStateOf(false) }
 
@@ -89,7 +140,47 @@ fun ClientProfileScreen(
             )
         }
     ) { innerPadding ->
+        
         var showGenerateDialog by remember { mutableStateOf(false) }
+        var showEditCommDialog by remember { mutableStateOf(false) }
+        var commInput by remember { mutableStateOf("") }
+        
+        if (showEditCommDialog) {
+            AlertDialog(
+                onDismissRequest = { showEditCommDialog = false },
+                title = { Text("تعديل نسبة العمولة", fontWeight = FontWeight.Bold) },
+                text = {
+                    Column {
+                        Text("أدخل نسبة العمولة الخاصة بهذا العميل:", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = commInput,
+                            onValueChange = { commInput = it },
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = {
+                        val pct = commInput.toDoubleOrNull()
+                        if (pct != null) {
+                            viewModel.updateCommission(pct)
+                            showEditCommDialog = false
+                        }
+                    }) {
+                        Text("حفظ")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showEditCommDialog = false }) {
+                        Text("إلغاء")
+                    }
+                }
+            )
+        }
+
 
         if (showGenerateDialog) {
             AlertDialog(
@@ -110,7 +201,7 @@ fun ClientProfileScreen(
             AlertDialog(
                 onDismissRequest = { showSettleDialog = false },
                 title = { Text("تسوية العمولات") },
-                text = { Text("هل أنت متأكد من رغبتك في تسوية العمولات المعلقة وقدرها ${client.pendingCommissions}؟") },
+                text = { Text("هل أنت متأكد من رغبتك في تسوية العمولات المعلقة وقدرها ${client?.pendingCommissions}؟") },
                 confirmButton = {
                     Button(
                         onClick = { showSettleDialog = false },
@@ -136,13 +227,13 @@ fun ClientProfileScreen(
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
             // Header: Identity
-            ClientIdentityCard(client = client)
+            client?.let { ClientIdentityCard(client = it) }
 
             // Section: Subscription & Licensing
-            ClientStatusCard(client = client, onGenerateLicense = { showGenerateDialog = true })
+            client?.let { ClientStatusCard(client = it, onGenerateLicense = { showGenerateDialog = true }) }
 
             // Section: Financials
-            ClientFinancialsCard(client = client, onSettleCommissions = { showSettleDialog = true })
+            client?.let { ClientFinancialsCard(client = it, onSettleCommissions = { showSettleDialog = true }) }
         }
 
         if (showActionSheet) {

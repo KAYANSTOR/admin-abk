@@ -1,86 +1,30 @@
 import re
 
-filepath = "/app/applet/app/src/main/java/com/example/ui/screens/SettingsScreen.kt"
-
-with open(filepath, "r", encoding="utf-8") as f:
+with open('/app/applet/app/src/main/java/com/example/ui/screens/SettingsScreen.kt', 'r') as f:
     content = f.read()
 
-# Add a section for Sync
-sync_section = '''
-        item {
-            Text(
-                text = "المزامنة (Sync)",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
-            )
-            
-            var syncStatus by remember { mutableStateOf("آخر وقت مزامنة: قبل قليل") }
-            var isSyncing by remember { mutableStateOf(false) }
-            val coroutineScope = rememberCoroutineScope()
-            val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
-
-            Card(
-                modifier = Modifier.fillMaxWidth().clickable {
-                    if (!isSyncing) {
-                        isSyncing = true
-                        syncStatus = "جارٍ المزامنة..."
-                        coroutineScope.launch {
-                            try {
-                                // Simulate sync wait
-                                kotlinx.coroutines.delay(2000)
-                                // We can use waitForPendingWrites or enableNetwork
-                                db.enableNetwork().await()
-                                syncStatus = "تمت المزامنة بنجاح"
-                            } catch (e: Exception) {
-                                syncStatus = "فشل المزامنة"
-                            } finally {
-                                isSyncing = false
-                            }
-                        }
-                    }
-                },
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Default.Sync,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "مزامنة البيانات الآن",
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = syncStatus,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if(syncStatus.contains("فشل")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    if (isSyncing) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    }
-                }
-            }
-        }
-'''
-
-content = content.replace('import androidx.compose.material.icons.filled.Phone', 'import androidx.compose.material.icons.filled.Phone\nimport androidx.compose.material.icons.filled.Sync\nimport kotlinx.coroutines.launch\nimport kotlinx.coroutines.tasks.await')
-
-# Insert before `item { Text(text = "التفضيلات",`
-content = content.replace(
-    '        item {\n            Text(\n                text = "التفضيلات"',
-    sync_section + '\n        item {\n            Text(\n                text = "التفضيلات"'
+# 1. Update signature
+content = re.sub(
+    r'isAdmin: Boolean = false\s*\) \{',
+    'isAdmin: Boolean = false,\n    onChangePin: (String, String, () -> Unit, (String) -> Unit) -> Unit = { _, _, _, _ -> },\n    onToggleNotifications: (Boolean) -> Unit = {}\n) {',
+    content
 )
 
-with open(filepath, "w", encoding="utf-8") as f:
+# 2. Fix the dangling dialog at the end
+# The dialog is inside the file but outside the SettingsScreen function.
+# Let's find the Dialog string and move it inside the SettingsScreen.
+# Wait, looking at the previous patch: I used `re.sub(r'}\s*$', pin_dialog, content)`
+# Since `content` already has the dialog at the end, I need to strip it, and put it inside `SettingsScreen`.
+# Let's just grab the whole dialog, remove it, and insert it before the closing brace of SettingsScreen.
+
+dialog_pattern = r'        if \(showPinDialog\).*?Text\("إلغاء"\)\s*\}\s*\}\s*\)\s*\}\s*\}'
+dialog_match = re.search(dialog_pattern, content, flags=re.DOTALL)
+if dialog_match:
+    dialog_text = dialog_match.group(0)
+    content = content.replace(dialog_text, "")
+    # Now find the end of SettingsScreen, which is before the `fun SettingRow` function
+    content = content.replace("fun SettingRow(", dialog_text[:-1] + "\nfun SettingRow(")
+
+with open('/app/applet/app/src/main/java/com/example/ui/screens/SettingsScreen.kt', 'w') as f:
     f.write(content)
+
